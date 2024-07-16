@@ -12,7 +12,6 @@ public class SumEvenNumbersJob : JsonJob<int, int>
                 sum += i;
             }
         }
-        Console.WriteLine("HEY!");
         return sum;
     }
 }
