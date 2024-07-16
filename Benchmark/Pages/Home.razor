@@ -1,0 +1,248 @@
+﻿@page "/"
+@using System.Diagnostics
+
+<!-- KristofferStrube.Blazor.WebWorkers -->
+@using KristofferStrube.Blazor.DOM
+@using KristofferStrube.Blazor.WebWorkers
+@using KristofferStrube.Blazor.Window
+@inject IJSRuntime JSRuntime
+
+<!-- Tewr.BlazorWorker -->
+@using BlazorWorker.BackgroundServiceFactory
+@using BlazorWorker.Core
+@inject IWorkerFactory workerFactory
+
+<!-- SpawnDev.BlazorJS.WebWorkers -->
+@using SpawnDev.BlazorJS.WebWorkers
+@inject WebWorkerService WebWorkerService
+
+<PageTitle>Workers Benchmarks - String Sum</PageTitle>
+
+<h1>String Sum</h1>
+
+<p>
+    Here we compare the average time for calculating the sum of the characters of a long string using three different implementations of a Worker Wrapper.
+</p>
+
+<p>
+    <label for="rounds">Rounds</label>
+    <input type="number" id="rounds" @bind=rounds>
+</p>
+
+<p>
+    <label for="inputLength">Input Length</label>
+    <input type="number" id="inputLength" @bind=inputLength>
+</p>
+
+<p>
+    <label for="skipPart">Skip</label>
+    <input type="number" id="skipPart" @bind=skipPart>
+</p>
+
+<button class="btn btn-primary" @onclick=MeasureMainThread>Measure Average running on main thread</button>
+
+@if (averageMainThread is not null)
+{
+    <text>
+        &nbsp;
+        <span class="badge bg-primary">@Math.Round((decimal)averageMainThread, 3)</span> milliseconds
+    </text>
+}
+<br />
+<br />
+
+<button class="btn btn-primary" @onclick=MeasureJSWebWorkers>Measure Average JS Web Workers</button>
+
+@if (averageJSWebWorkers is not null)
+{
+    <text>
+        &nbsp;
+        <span class="badge bg-primary">@Math.Round((decimal)averageJSWebWorkers, 3)</span> milliseconds
+    </text>
+}
+<br />
+<br />
+
+<button class="btn btn-primary" @onclick=MeasureBlazorWebWorkers>Measure Average KristofferStrube.Blazor.WebWorkers</button>
+
+@if (averageKristofferStrubeBlazorWebWorkers is not null)
+{
+    <text>
+        &nbsp;
+        <span class="badge bg-primary">@Math.Round((decimal)averageKristofferStrubeBlazorWebWorkers, 3)</span> milliseconds
+    </text>
+}
+<br />
+<br />
+
+<button class="btn btn-primary" @onclick=MeasureTewrBlazorWorker>Measure Average Tewr.BlazorWorker</button>
+
+@if (averageTewrBlazorWorker is not null)
+{
+    <text>
+        &nbsp;
+        <span class="badge bg-primary">@Math.Round((decimal)averageTewrBlazorWorker, 3)</span> milliseconds
+    </text>
+}
+<br />
+<br />
+
+<button class="btn btn-primary" @onclick=MeasureSpawnDevBlazorJSWebWorkers>Measure Average SpawnDev.BlazorJS.WebWorkers</button>
+
+@if (averageSpawnDevBlazorJSWebWorkers is not null)
+{
+    <text>
+        &nbsp;
+        <span class="badge bg-primary">@Math.Round((decimal)averageSpawnDevBlazorJSWebWorkers, 3)</span> milliseconds
+    </text>
+}
+<br />
+<br />
+
+@code {
+    string[] Inputs() => Enumerable.Range(0, rounds).Select(_ =>
+        string.Join("", Enumerable.Range(0, inputLength / 8).Select(_ => Guid.NewGuid().ToString()[..8]))
+    ).ToArray();
+
+    int rounds = 100;
+    int inputLength = 1000;
+    double skipPart = 0.9;
+
+    double? averageMainThread = null;
+    double? averageJSWebWorkers = null;
+    double? averageKristofferStrubeBlazorWebWorkers = null;
+    double? averageTewrBlazorWorker = null;
+    double? averageSpawnDevBlazorJSWebWorkers = null;
+
+    public async Task MeasureMainThread()
+    {
+        averageMainThread = null;
+        StateHasChanged();
+
+        StringSumJob job = new();
+
+        string[] inputs = Inputs();
+        List<double> measurements = new();
+        for (int i = 0; i < rounds; i++)
+        {
+            long start = Stopwatch.GetTimestamp();
+            job.Work(inputs[i]);
+            measurements.Add(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+        }
+
+        averageMainThread = measurements
+            .OrderDescending()
+            .Skip((int)(rounds * skipPart))
+            .Average();
+    }
+
+    public async Task MeasureJSWebWorkers()
+    {
+        long start = 0;
+        averageJSWebWorkers = null;
+        StateHasChanged();
+
+        var jsWorker = await Worker.CreateAsync(JSRuntime, "stringSumWorker.js");
+
+        string[] inputs = Inputs();
+        List<double> measurements = new();
+        int i = 0;
+
+        EventListener<MessageEvent> eventListener = default!;
+        eventListener = await EventListener<MessageEvent>.CreateAsync(JSRuntime, async e =>
+        {
+            i++;
+            int result = await e.GetDataAsync<int>();
+            measurements.Add(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+            if (i < rounds)
+            {
+                start = Stopwatch.GetTimestamp();
+                await jsWorker.PostMessageAsync(inputs[i]);
+            }
+            else
+            {
+                await jsWorker.RemoveOnMessageEventListenerAsync(eventListener);
+                await eventListener.DisposeAsync();
+
+                averageJSWebWorkers = measurements
+                    .OrderDescending()
+                    .Skip((int)(rounds * skipPart))
+                    .Average();
+                StateHasChanged();
+            }
+        });
+
+        await jsWorker.AddOnMessageEventListenerAsync(eventListener);
+
+        start = Stopwatch.GetTimestamp();
+        await jsWorker.PostMessageAsync(inputs[i]);
+    }
+
+    public async Task MeasureBlazorWebWorkers()
+    {
+        averageKristofferStrubeBlazorWebWorkers = null;
+        StateHasChanged();
+
+        var jobWorker = await JobWorker<string, int, StringSumJob>.CreateAsync(JSRuntime);
+
+        string[] inputs = Inputs();
+        List<double> measurements = new();
+        for (int i = 0; i < rounds; i++)
+        {
+            long start = Stopwatch.GetTimestamp();
+            await jobWorker.ExecuteAsync(inputs[i]);
+            measurements.Add(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+        }
+
+        averageKristofferStrubeBlazorWebWorkers = measurements
+            .OrderDescending()
+            .Skip((int)(rounds * skipPart))
+            .Average();
+    }
+
+    public async Task MeasureTewrBlazorWorker()
+    {
+        averageTewrBlazorWorker = null;
+        StateHasChanged();
+
+        var worker = await workerFactory.CreateAsync();
+        var service = await worker.CreateBackgroundServiceAsync<StringSumJob>();
+
+        string[] inputs = Inputs();
+        List<double> measurements = new();
+        for (int i = 0; i < rounds; i++)
+        {
+            long start = Stopwatch.GetTimestamp();
+            var localParameterValue = inputs[i];
+            await service.RunAsync(s => s.Work(localParameterValue));
+            measurements.Add(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+        }
+
+        averageTewrBlazorWorker = measurements
+            .OrderDescending()
+            .Skip((int)(rounds * skipPart))
+            .Average();
+    }
+
+    public async Task MeasureSpawnDevBlazorJSWebWorkers()
+    {
+        averageSpawnDevBlazorJSWebWorkers = null;
+        StateHasChanged();
+
+        var worker = await WebWorkerService.GetWebWorker();
+
+        string[] inputs = Inputs();
+        List<double> measurements = new();
+        for (int i = 0; i < rounds; i++)
+        {
+            long start = Stopwatch.GetTimestamp();
+            await worker!.Run<StringSumJob, int>(job => job.Work(inputs[i]));
+            measurements.Add(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+        }
+
+        averageSpawnDevBlazorJSWebWorkers = measurements
+            .OrderDescending()
+            .Skip((int)(rounds * skipPart))
+            .Average();
+    }
+}

@@ -1,0 +1,33 @@
+﻿@page "/Tewr"
+
+@using BlazorWorker.BackgroundServiceFactory
+@using BlazorWorker.Core
+@inject IWorkerFactory workerFactory
+
+<button @onclick=ExecuteOnTewrBlazorWorker>Execute</button>
+<br/>
+<code>@result</code>
+
+@code {
+    private string result = "";
+
+    private async Task ExecuteOnTewrBlazorWorker()
+    {
+        IWorker worker = await workerFactory.CreateAsync();
+        var service = await worker.CreateBackgroundServiceAsync<MathService>();
+
+        double input = Random.Shared.NextDouble();
+
+        double output = await service.RunAsync(math => math.MutliplyByTwo(input));
+
+        result = $"{input} * 2 = {output}";
+    }
+
+    public class MathService
+    {
+        public double MutliplyByTwo(double input)
+        {
+            return input * 2;
+        }
+    }
+}

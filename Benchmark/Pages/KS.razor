@@ -1,0 +1,22 @@
+﻿@page "/KS"
+@using KristofferStrube.Blazor.WebWorkers
+@inject IJSRuntime JSRuntime
+
+<button @onclick=ExecuteOnBlazorWebWorkers>Execute</button>
+<br/>
+<code>@result</code>
+
+@code {
+    private string result = "";
+
+    private async Task ExecuteOnBlazorWebWorkers()
+    {
+        var worker = await JobWorker<double, double, MultiplyByTwoJob>.CreateAsync(JSRuntime);
+
+        double input = Random.Shared.NextDouble();
+
+        double output = await worker.ExecuteAsync(input);
+
+        result = $"{input} * 2 = {output}";
+    }
+}

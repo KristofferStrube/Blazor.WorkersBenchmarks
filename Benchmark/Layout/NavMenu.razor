@@ -1,0 +1,54 @@
+﻿<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">Workers Benchmarks</a>
+        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
+
+<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
+    <nav class="flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="LargeInput">
+                <svg class="bi" viewBox="0 0 16 16">
+                    <rect stroke="black" stroke-width="0" fill="#FFFFFF" x="1" y="1" width="6" height="6"></rect>
+                    <rect stroke="black" stroke-width="0" fill="#FFFFFF" x="9" y="1" width="6" height="6"></rect>
+                    <rect stroke="black" stroke-width="0" fill="#FFFFFF" x="1" y="9" width="6" height="6"></rect>
+                    <rect stroke="black" stroke-width="0" fill="#FFFFFF" x="9" y="9" width="6" height="6"></rect>
+                </svg> Large Input
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="SumEvenNumbers">
+                <svg class="bi" viewBox="0 0 16 16">
+                    <rect stroke="black" stroke-width="0" fill="#FFFFFF" x="1" y="1" width="6" height="14"></rect>
+                    <rect stroke="black" stroke-width="0" fill="#FFFFFF" x="9" y="1" width="6" height="14"></rect>
+                </svg> Sum Even Numbers
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="AverageCityTemperatures">
+                <svg class="bi" viewBox="0 0 16 16">
+                    <polygon stroke="black" stroke-width="0" fill="#FFFFFF" points="1,2 6,2 6,11 10,7 15,11 15,15 1,15"></polygon>
+                </svg> City Temperatures
+            </NavLink>
+        </div>
+    </nav>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+}

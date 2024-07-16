@@ -1,0 +1,23 @@
+﻿@page "/SpawnDev"
+
+@using SpawnDev.BlazorJS.WebWorkers
+@inject WebWorkerService WebWorkerService
+
+<button @onclick=ExecuteOnSpawnDevWebWorker>Execute</button>
+<br/>
+<code>@result</code>
+
+@code {
+    private string result = "";
+
+    private async Task ExecuteOnSpawnDevWebWorker()
+    {
+        WebWorker? worker = await WebWorkerService.GetWebWorker();
+
+        double input = Random.Shared.NextDouble();
+
+        double output = await worker!.Run<IMathService, double>(job => job.MutliplyByTwo(input));
+
+        result = $"{input} * 2 = {output}";
+    }
+}
