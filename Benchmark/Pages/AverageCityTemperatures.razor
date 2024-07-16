@@ -138,7 +138,7 @@
         averageJSWebWorkers = null;
         StateHasChanged();
 
-        var jsWorker = await Worker.CreateAsync(JSRuntime, "AverageCityTemperatures.js");
+        var jsWorker = await Worker.CreateAsync(JSRuntime, "averageCityTemperatures.js");
 
         List<double> measurements = new();
         int i = 0;
