@@ -92,7 +92,7 @@
 <br />
 <br />
 
-<button class="btn btn-primary" @onclick=MeasureTewrBlazorWorkerCore>Measure Average Tewr.BlazorWorkerCore</button>
+<button class="btn btn-primary" @onclick=MeasureTewrBlazorWorkerCore>Measure Average Tewr.BlazorWorker.Core</button>
 
 @if (averageTewrBlazorWorkerCore is not null)
 {
@@ -257,7 +257,7 @@
         var worker = await workerFactory.CreateAsync();
         // response synchronizer
         TaskCompletionSource<int> nextMessageSource() => 
-            new TaskCompletionSource<int>();
+            new();
 
         var nextMessage = nextMessageSource();
         void OnWorkerMessage(object _, string message) =>
@@ -266,12 +266,12 @@
         worker.IncomingMessage += (s, e) => OnWorkerMessage(s ,e);
 
         var service = worker.CreateCoreInstanceService();
+        var handle = await service.CreateInstance<SumEvenNumbersJobCore>();
 
         List<double> measurements = new();
         for (int i = 0; i < rounds; i++)
         {
             long start = Stopwatch.GetTimestamp();
-            //var localParameterValue = input;
             await worker.PostMessageAsync(input.ToString());
             await nextMessage.Task;
             nextMessage = nextMessageSource();
