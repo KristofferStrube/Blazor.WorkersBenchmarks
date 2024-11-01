@@ -1,0 +1,53 @@
+﻿@page "/TewrCore"
+
+@using BlazorWorker.Core.CoreInstanceService
+@using BlazorWorker.Core
+@using BlazorWorker.WorkerCore
+@inject IWorkerFactory workerFactory
+
+<button @onclick=ExecuteOnTewrBlazorWorker>Execute</button>
+<br/>
+<code>@result</code>
+
+@code {
+    private string result = "";
+    private IInstanceHandle coreMathService;
+    private double lastInput;
+    private async Task ExecuteOnTewrBlazorWorker()
+    {
+        IWorker worker = await workerFactory.CreateAsync();
+        worker.IncomingMessage += this.OnWorkerMessage;
+
+        var service = worker.CreateCoreInstanceService();
+        coreMathService = await service.CreateInstance<MathServiceCore>();
+
+        double input = Random.Shared.NextDouble();
+        lastInput = input;
+        await worker.PostMessageAsync(input.ToString());
+
+        //double output = await service.RunAsync(math => math.MutliplyByTwo(input));
+
+
+    }
+
+    public void OnWorkerMessage(object sender, string message)
+    {
+        result = $"{lastInput} * 2 = {message}";
+        StateHasChanged();
+    }
+
+    public class MathServiceCore : MathService
+    {
+        private readonly IWorkerMessageService messageService;
+
+        public MathServiceCore(IWorkerMessageService messageService)
+        {
+            this.messageService = messageService;
+            this.messageService.IncomingMessage += (e, message) =>
+            {
+                var result = this.MutliplyByTwo(double.Parse(message));
+                this.messageService.PostMessageAsync(result.ToString());
+            };
+        }
+    }
+}
