@@ -8,6 +8,10 @@
 @using KristofferStrube.Blazor.Window
 @inject IJSRuntime JSRuntime
 
+<!-- Tewr.BlazorWorker.Core -->
+@using BlazorWorker.Core.CoreInstanceService
+@using BlazorWorker.WorkerCore
+
 <!-- Tewr.BlazorWorker -->
 @using BlazorWorker.BackgroundServiceFactory
 @using BlazorWorker.Core
@@ -88,6 +92,19 @@
 <br />
 <br />
 
+
+
+<button class="btn btn-primary" @onclick=MeasureTewrBlazorWorkerCore>Measure Average Tewr.BlazorWorker.Core</button>
+
+@if (averageTewrBlazorWorkerCore is not null)
+{
+    <text>
+        &nbsp;
+        <span class="badge bg-primary">@Math.Round((decimal)averageTewrBlazorWorkerCore, 3)</span> milliseconds
+    </text>
+}
+<br />
+<br />
 <button class="btn btn-primary" @onclick=MeasureSpawnDevBlazorJSWebWorkers>Measure Average SpawnDev.BlazorJS.WebWorkers</button>
 
 @if (averageSpawnDevBlazorJSWebWorkers is not null)
@@ -109,6 +126,7 @@
     double? averageJSWebWorkers = null;
     double? averageKristofferStrubeBlazorWebWorkers = null;
     double? averageTewrBlazorWorker = null;
+    double? averageTewrBlazorWorkerCore = null;
     double? averageSpawnDevBlazorJSWebWorkers = null;
 
     public async Task MeasureMainThread()
@@ -194,6 +212,8 @@
             .Average();
     }
 
+
+
     public async Task MeasureTewrBlazorWorker()
     {
         averageTewrBlazorWorker = null;
@@ -216,6 +236,60 @@
             .Skip((int)(rounds * skipPart))
             .Average();
     }
+
+    public class AverageCityTemperaturesJobCore : AverageCityTemperaturesJob
+    {
+        private readonly IWorkerMessageService messageService;
+
+        public AverageCityTemperaturesJobCore(IWorkerMessageService messageService, HttpClient httpClient):base(httpClient)
+        {
+            this.messageService = messageService;
+            this.messageService.IncomingMessage += (e, message) =>
+            {
+                this.Work(int.Parse(message))
+                .ContinueWith(t => this.messageService.PostMessageAsync(System.Text.Json.JsonSerializer.Serialize(t.Result)));
+            };
+        }
+    }
+
+
+
+    public async Task MeasureTewrBlazorWorkerCore()
+    {
+        averageTewrBlazorWorkerCore = null;
+        StateHasChanged();
+
+        var worker = await workerFactory.CreateAsync();
+
+        var service = worker.CreateCoreInstanceService();
+        var handle = await service.CreateInstance<AverageCityTemperaturesJobCore>();
+
+        // response synchronizer
+        TaskCompletionSource<CityStatistics[]> nextMessageSource() =>
+            new();
+
+        var nextMessage = nextMessageSource();
+        void OnWorkerMessage(object _, string message) =>
+            nextMessage.SetResult(System.Text.Json.JsonSerializer.Deserialize<CityStatistics[]>(message));
+
+        worker.IncomingMessage += (s, e) => OnWorkerMessage(s, e);
+
+        List<double> measurements = new();
+        for (int i = 0; i < rounds; i++)
+        {
+            long start = Stopwatch.GetTimestamp();
+            await worker.PostMessageAsync(input.ToString());
+            await nextMessage.Task;
+            nextMessage = nextMessageSource();
+            measurements.Add(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+        }
+
+        averageTewrBlazorWorkerCore = measurements
+            .OrderDescending()
+            .Skip((int)(rounds * skipPart))
+            .Average();
+    }
+
 
     public async Task MeasureSpawnDevBlazorJSWebWorkers()
     {

@@ -7,6 +7,10 @@
 @using KristofferStrube.Blazor.Window
 @inject IJSRuntime JSRuntime
 
+<!-- Tewr.BlazorWorker.Core -->
+@using BlazorWorker.Core.CoreInstanceService
+@using BlazorWorker.WorkerCore
+
 <!-- Tewr.BlazorWorker -->
 @using BlazorWorker.BackgroundServiceFactory
 @using BlazorWorker.Core
@@ -86,7 +90,17 @@
 }
 <br />
 <br />
+<button class="btn btn-primary" @onclick=MeasureTewrBlazorWorkerCore>Measure Average Tewr.BlazorWorker.Core</button>
 
+@if (averageTewrBlazorWorkerCore is not null)
+{
+    <text>
+        &nbsp;
+        <span class="badge bg-primary">@Math.Round((decimal)averageTewrBlazorWorkerCore, 3)</span> milliseconds
+    </text>
+}
+<br />
+<br />
 <button class="btn btn-primary" @onclick=MeasureSpawnDevBlazorJSWebWorkers>Measure Average SpawnDev.BlazorJS.WebWorkers</button>
 
 @if (averageSpawnDevBlazorJSWebWorkers is not null)
@@ -112,6 +126,7 @@
     double? averageJSWebWorkers = null;
     double? averageKristofferStrubeBlazorWebWorkers = null;
     double? averageTewrBlazorWorker = null;
+    double? averageTewrBlazorWorkerCore = null;
     double? averageSpawnDevBlazorJSWebWorkers = null;
 
     public async Task MeasureMainThread()
@@ -219,6 +234,58 @@
         }
 
         averageTewrBlazorWorker = measurements
+            .OrderDescending()
+            .Skip((int)(rounds * skipPart))
+            .Average();
+    }
+
+    public class StringSumJobCore : StringSumJob
+    {
+        private readonly IWorkerMessageService messageService;
+
+        public StringSumJobCore(IWorkerMessageService messageService)
+        {
+            this.messageService = messageService;
+            this.messageService.IncomingMessage += (e, message) =>
+            {
+                var result = this.Work(message);
+                this.messageService.PostMessageAsync(result.ToString());
+            };
+        }
+    }
+
+    public async Task MeasureTewrBlazorWorkerCore()
+    {
+        averageTewrBlazorWorkerCore = null;
+        StateHasChanged();
+
+        var worker = await workerFactory.CreateAsync();
+        var service = worker.CreateCoreInstanceService();
+        var handle = await service.CreateInstance<StringSumJobCore>();
+
+        // response synchronizer
+        TaskCompletionSource<int> nextMessageSource() =>
+            new();
+
+        var nextMessage = nextMessageSource();
+        void OnWorkerMessage(object _, string message) =>
+            nextMessage.SetResult(int.Parse(message));
+
+        worker.IncomingMessage += (s, e) => OnWorkerMessage(s, e);
+
+
+        string[] inputs = Inputs();
+        List<double> measurements = new();
+        for (int i = 0; i < rounds; i++)
+        {
+            long start = Stopwatch.GetTimestamp();
+            await worker.PostMessageAsync(inputs[i]);
+            await nextMessage.Task;
+            nextMessage = nextMessageSource();
+            measurements.Add(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+        }
+
+        averageTewrBlazorWorkerCore = measurements
             .OrderDescending()
             .Skip((int)(rounds * skipPart))
             .Average();

@@ -15,7 +15,7 @@
     {
         IWorker worker = await workerFactory.CreateAsync();
         var service = await worker.CreateBackgroundServiceAsync<MathService>();
-
+        
         double input = Random.Shared.NextDouble();
 
         double output = await service.RunAsync(math => math.MutliplyByTwo(input));
